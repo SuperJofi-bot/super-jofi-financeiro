@@ -75,7 +75,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }
         <div className="absolute bottom-8 left-0 right-0 px-8">
           <div className="p-4 bg-slate-800 rounded-2xl">
             <p className="text-xs text-slate-400 mb-1">Versão 1.0.0</p>
-            <p className="text-sm font-semibold text-white">Suporte do Super Jofi 💼</p>
+            <p className="text-sm font-semibold text-white">Suporte Super Jofi</p>
           </div>
         </div>
       </aside>
