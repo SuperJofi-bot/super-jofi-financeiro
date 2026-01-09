@@ -1,103 +1,151 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ChartOfAccounts, Entry, BaseItem, CategoryType } from '../types';
+import { ChartOfAccounts, Entry, CategoryType } from '../types';
+import { supabase } from '../supabase';
 
 interface FinanceContextType {
   chartOfAccounts: ChartOfAccounts;
   entries: Entry[];
-  addChartItem: (key: keyof ChartOfAccounts, name: string) => void;
-  updateChartItem: (key: keyof ChartOfAccounts, id: string, name: string) => void;
-  deleteChartItem: (key: keyof ChartOfAccounts, id: string) => void;
-  addEntry: (entry: Omit<Entry, 'id'>) => void;
-  updateEntry: (id: string, entry: Omit<Entry, 'id'>) => void;
-  deleteEntry: (id: string) => void;
+  loading: boolean;
+  addChartItem: (key: keyof ChartOfAccounts, name: string) => Promise<void>;
+  updateChartItem: (key: keyof ChartOfAccounts, id: string, name: string) => Promise<void>;
+  deleteChartItem: (key: keyof ChartOfAccounts, id: string) => Promise<void>;
+  addEntry: (entry: Omit<Entry, 'id'>) => Promise<void>;
+  updateEntry: (id: string, entry: Omit<Entry, 'id'>) => Promise<void>;
+  deleteEntry: (id: string) => Promise<void>;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 const INITIAL_CHART: ChartOfAccounts = {
-  incomeTypes: [
-    { id: '1', name: 'Vendas' },
-    { id: '2', name: 'Recebimentos' },
-    { id: '3', name: 'Outros' }
-  ],
-  expenseTypes: [
-    { id: '1', name: 'Energia' },
-    { id: '2', name: 'Aluguel' },
-    { id: '3', name: 'RH' },
-    { id: '4', name: 'Contabilidade' }
-  ],
-  banks: [
-    { id: '1', name: 'Stone' },
-    { id: '2', name: 'Bradesco' },
-    { id: '3', name: 'Conta Interna' }
-  ],
-  paymentMethods: [
-    { id: '1', name: 'Dinheiro' },
-    { id: '2', name: 'Pix' },
-    { id: '3', name: 'Débito' },
-    { id: '4', name: 'Crédito' }
-  ]
+  incomeTypes: [],
+  expenseTypes: [],
+  banks: [],
+  paymentMethods: []
 };
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccounts>(() => {
-    const saved = localStorage.getItem('superjofi_chart');
-    return saved ? JSON.parse(saved) : INITIAL_CHART;
-  });
+  const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccounts>(INITIAL_CHART);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [entries, setEntries] = useState<Entry[]>(() => {
-    const saved = localStorage.getItem('superjofi_entries');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  // Fetch initial data
   useEffect(() => {
-    localStorage.setItem('superjofi_chart', JSON.stringify(chartOfAccounts));
-  }, [chartOfAccounts]);
+    const fetchData = async () => {
+      setLoading(true);
+      
+      // Fetch Chart Items
+      const { data: chartData, error: chartError } = await supabase
+        .from('chart_items')
+        .select('*');
+      
+      if (!chartError && chartData) {
+        const newChart: ChartOfAccounts = { ...INITIAL_CHART };
+        chartData.forEach((item: any) => {
+          const category = item.category as keyof ChartOfAccounts;
+          if (newChart[category]) {
+            newChart[category].push({ id: item.id, name: item.name });
+          }
+        });
+        setChartOfAccounts(newChart);
+      }
 
-  useEffect(() => {
-    localStorage.setItem('superjofi_entries', JSON.stringify(entries));
-  }, [entries]);
+      // Fetch Entries
+      const { data: entriesData, error: entriesError } = await supabase
+        .from('entries')
+        .select('*')
+        .order('date', { ascending: false });
 
-  const addChartItem = (key: keyof ChartOfAccounts, name: string) => {
-    const newItem = { id: Date.now().toString(), name };
-    setChartOfAccounts(prev => ({
-      ...prev,
-      [key]: [...prev[key], newItem]
-    }));
+      if (!entriesError && entriesData) {
+        setEntries(entriesData);
+      }
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, []);
+
+  const addChartItem = async (key: keyof ChartOfAccounts, name: string) => {
+    const { data, error } = await supabase
+      .from('chart_items')
+      .insert([{ category: key, name }])
+      .select();
+
+    if (!error && data) {
+      setChartOfAccounts(prev => ({
+        ...prev,
+        [key]: [...prev[key], { id: data[0].id, name: data[0].name }]
+      }));
+    }
   };
 
-  const updateChartItem = (key: keyof ChartOfAccounts, id: string, name: string) => {
-    setChartOfAccounts(prev => ({
-      ...prev,
-      [key]: prev[key].map(item => item.id === id ? { ...item, name } : item)
-    }));
+  const updateChartItem = async (key: keyof ChartOfAccounts, id: string, name: string) => {
+    const { error } = await supabase
+      .from('chart_items')
+      .update({ name })
+      .eq('id', id);
+
+    if (!error) {
+      setChartOfAccounts(prev => ({
+        ...prev,
+        [key]: prev[key].map(item => item.id === id ? { ...item, name } : item)
+      }));
+    }
   };
 
-  const deleteChartItem = (key: keyof ChartOfAccounts, id: string) => {
-    setChartOfAccounts(prev => ({
-      ...prev,
-      [key]: prev[key].filter(item => item.id !== id)
-    }));
+  const deleteChartItem = async (key: keyof ChartOfAccounts, id: string) => {
+    const { error } = await supabase
+      .from('chart_items')
+      .delete()
+      .eq('id', id);
+
+    if (!error) {
+      setChartOfAccounts(prev => ({
+        ...prev,
+        [key]: prev[key].filter(item => item.id !== id)
+      }));
+    }
   };
 
-  const addEntry = (entry: Omit<Entry, 'id'>) => {
-    const newEntry = { ...entry, id: Date.now().toString() };
-    setEntries(prev => [...prev, newEntry]);
+  const addEntry = async (entry: Omit<Entry, 'id'>) => {
+    const { data, error } = await supabase
+      .from('entries')
+      .insert([entry])
+      .select();
+
+    if (!error && data) {
+      setEntries(prev => [data[0], ...prev]);
+    }
   };
 
-  const updateEntry = (id: string, entry: Omit<Entry, 'id'>) => {
-    setEntries(prev => prev.map(item => item.id === id ? { ...entry, id } : item));
+  const updateEntry = async (id: string, entry: Omit<Entry, 'id'>) => {
+    const { error } = await supabase
+      .from('entries')
+      .update(entry)
+      .eq('id', id);
+
+    if (!error) {
+      setEntries(prev => prev.map(item => item.id === id ? { ...entry, id } : item));
+    }
   };
 
-  const deleteEntry = (id: string) => {
-    setEntries(prev => prev.filter(item => item.id !== id));
+  const deleteEntry = async (id: string) => {
+    const { error } = await supabase
+      .from('entries')
+      .delete()
+      .eq('id', id);
+
+    if (!error) {
+      setEntries(prev => prev.filter(item => item.id !== id));
+    }
   };
 
   return (
     <FinanceContext.Provider value={{
       chartOfAccounts,
       entries,
+      loading,
       addChartItem,
       updateChartItem,
       deleteChartItem,
