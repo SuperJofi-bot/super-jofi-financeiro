@@ -9,9 +9,10 @@ const ChartSection: React.FC<{
   title: string;
   items: { id: string, name: string }[];
   icon: React.ElementType;
-  onAdd: (name: string) => void;
-  onUpdate: (id: string, name: string) => void;
-  onDelete: (id: string) => void;
+  // Update: Allowing void | Promise<void> for callbacks
+  onAdd: (name: string) => void | Promise<void>;
+  onUpdate: (id: string, name: string) => void | Promise<void>;
+  onDelete: (id: string) => void | Promise<void>;
   accentColor: string;
 }> = ({ title, items, icon: Icon, onAdd, onUpdate, onDelete, accentColor }) => {
   const [isAdding, setIsAdding] = useState(false);
@@ -141,7 +142,6 @@ const ChartOfAccounts: React.FC = () => {
           onUpdate={(id, name) => updateChartItem('incomeTypes', id, name)}
           onDelete={(id) => deleteChartItem('incomeTypes', id)}
           accentColor="bg-emerald-500"
-          accentIconColor="text-emerald-500"
         />
 
         <ChartSection 
@@ -152,7 +152,6 @@ const ChartOfAccounts: React.FC = () => {
           onUpdate={(id, name) => updateChartItem('expenseTypes', id, name)}
           onDelete={(id) => deleteChartItem('expenseTypes', id)}
           accentColor="bg-rose-500"
-          accentIconColor="text-rose-500"
         />
 
         <ChartSection 
@@ -163,7 +162,6 @@ const ChartOfAccounts: React.FC = () => {
           onUpdate={(id, name) => updateChartItem('banks', id, name)}
           onDelete={(id) => deleteChartItem('banks', id)}
           accentColor="bg-indigo-500"
-          accentIconColor="text-indigo-500"
         />
 
         <ChartSection 
@@ -174,7 +172,6 @@ const ChartOfAccounts: React.FC = () => {
           onUpdate={(id, name) => updateChartItem('paymentMethods', id, name)}
           onDelete={(id) => deleteChartItem('paymentMethods', id)}
           accentColor="bg-amber-500"
-          accentIconColor="text-amber-500"
         />
       </div>
 
