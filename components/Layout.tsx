@@ -28,6 +28,8 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }
     { id: Page.REPORTS, label: 'Relatórios', icon: BarChart3 },
   ];
 
+  const logoUrl = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTfq4BxEHtsFj1qCF3sTK3eyQy2sqv-QXRs8Q&s";
+
   return (
     <div className="min-h-screen flex bg-slate-50">
       {/* Mobile Sidebar Overlay */}
@@ -45,10 +47,21 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="p-6 flex items-center gap-3">
-          <div className="bg-emerald-500 p-2 rounded-lg">
-            <CircleDollarSign className="w-6 h-6 text-white" />
+          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20 bg-white flex-shrink-0">
+            <img 
+              src={logoUrl} 
+              alt="Super Jofi Logo" 
+              className="w-full h-full object-contain p-0.5"
+              onError={(e) => {
+                // Fallback caso a imagem não exista
+                e.currentTarget.src = 'https://via.placeholder.com/150?text=Jofi';
+              }}
+            />
           </div>
-          <span className="text-xl font-bold tracking-tight">Super Jofi</span>
+          <div className="flex flex-col">
+            <span className="text-xl font-bold tracking-tight leading-tight">Super Jofi</span>
+            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Financeiro</span>
+          </div>
         </div>
 
         <nav className="mt-8 px-4 space-y-2">
@@ -62,7 +75,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }
               className={`
                 w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all
                 ${currentPage === item.id 
-                  ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'}
               `}
             >
@@ -74,7 +87,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }
 
         <div className="absolute bottom-8 left-0 right-0 px-8">
           <div className="p-4 bg-slate-800 rounded-2xl">
-            <p className="text-xs text-slate-400 mb-1">Versão 1.0.0</p>
+            <p className="text-xs text-slate-400 mb-1">Versão 1.1.0</p>
             <p className="text-sm font-semibold text-white">Suporte Super Jofi</p>
           </div>
         </div>

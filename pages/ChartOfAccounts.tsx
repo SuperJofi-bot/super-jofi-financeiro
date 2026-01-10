@@ -1,15 +1,12 @@
 
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { ChartOfAccounts as IChartOfAccounts } from '../types';
-// Fixed: Added TrendingUp and TrendingDown to the main icon imports
-import { Plus, Trash2, Edit2, Check, X, Building2, Wallet, CreditCard, Landmark, TrendingUp, TrendingDown } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Building2, ShoppingBag, Landmark, CreditCard, TrendingUp, TrendingDown } from 'lucide-react';
 
 const ChartSection: React.FC<{
   title: string;
   items: { id: string, name: string }[];
   icon: React.ElementType;
-  // Update: Allowing void | Promise<void> for callbacks
   onAdd: (name: string) => void | Promise<void>;
   onUpdate: (id: string, name: string) => void | Promise<void>;
   onDelete: (id: string) => void | Promise<void>;
@@ -36,7 +33,7 @@ const ChartSection: React.FC<{
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
       <div className={`p-4 border-b border-slate-100 flex items-center justify-between ${accentColor}`}>
         <div className="flex items-center gap-3">
           <div className="p-2 bg-white/20 rounded-lg">
@@ -55,9 +52,9 @@ const ChartSection: React.FC<{
         </button>
       </div>
 
-      <div className="p-2 flex-1 min-h-[200px]">
+      <div className="p-2 flex-1 min-h-[150px]">
         {isAdding && (
-          <div className="p-2 mb-2 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-2 animate-in slide-in-from-top-2">
+          <div className="p-2 mb-2 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-2">
             <input 
               autoFocus
               className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-1"
@@ -80,7 +77,7 @@ const ChartSection: React.FC<{
                 <div className="flex-1 flex items-center gap-2">
                   <input 
                     autoFocus
-                    className="flex-1 bg-white border border-slate-300 rounded-lg px-2 py-1 text-sm focus:ring-1 focus:ring-slate-300 outline-none"
+                    className="flex-1 bg-white border border-slate-300 rounded-lg px-2 py-1 text-sm outline-none"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleUpdate(item.id)}
@@ -112,11 +109,6 @@ const ChartSection: React.FC<{
               )}
             </div>
           ))}
-          {items.length === 0 && !isAdding && (
-            <div className="py-8 text-center">
-              <p className="text-xs text-slate-400">Nenhum item cadastrado</p>
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -127,15 +119,15 @@ const ChartOfAccounts: React.FC = () => {
   const { chartOfAccounts, addChartItem, updateChartItem, deleteChartItem } = useFinance();
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-10">
       <header>
         <h1 className="text-2xl font-bold text-slate-900">Plano de Contas</h1>
-        <p className="text-slate-500">Gerencie as categorias de receitas, despesas e dados bancários.</p>
+        <p className="text-slate-500">Defina as categorias de Receitas, Despesas e Compras separadamente.</p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         <ChartSection 
-          title="Tipos de Receitas"
+          title="Receitas"
           items={chartOfAccounts.incomeTypes}
           icon={TrendingUp}
           onAdd={(name) => addChartItem('incomeTypes', name)}
@@ -145,7 +137,7 @@ const ChartOfAccounts: React.FC = () => {
         />
 
         <ChartSection 
-          title="Tipos de Despesas"
+          title="Despesas"
           items={chartOfAccounts.expenseTypes}
           icon={TrendingDown}
           onAdd={(name) => addChartItem('expenseTypes', name)}
@@ -155,17 +147,27 @@ const ChartOfAccounts: React.FC = () => {
         />
 
         <ChartSection 
-          title="Bancos / Contas"
+          title="Compras"
+          items={chartOfAccounts.purchaseTypes}
+          icon={ShoppingBag}
+          onAdd={(name) => addChartItem('purchaseTypes', name)}
+          onUpdate={(id, name) => updateChartItem('purchaseTypes', id, name)}
+          onDelete={(id) => deleteChartItem('purchaseTypes', id)}
+          accentColor="bg-blue-600"
+        />
+
+        <ChartSection 
+          title="Bancos"
           items={chartOfAccounts.banks}
           icon={Landmark}
           onAdd={(name) => addChartItem('banks', name)}
           onUpdate={(id, name) => updateChartItem('banks', id, name)}
           onDelete={(id) => deleteChartItem('banks', id)}
-          accentColor="bg-indigo-500"
+          accentColor="bg-slate-700"
         />
 
         <ChartSection 
-          title="Formas de Pagamento"
+          title="Formas Pgto"
           items={chartOfAccounts.paymentMethods}
           icon={CreditCard}
           onAdd={(name) => addChartItem('paymentMethods', name)}
@@ -173,19 +175,6 @@ const ChartOfAccounts: React.FC = () => {
           onDelete={(id) => deleteChartItem('paymentMethods', id)}
           accentColor="bg-amber-500"
         />
-      </div>
-
-      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6 flex gap-4">
-        <div className="bg-blue-100 p-3 rounded-xl h-fit">
-          <Building2 className="w-6 h-6 text-blue-600" />
-        </div>
-        <div>
-          <h4 className="font-bold text-blue-900 mb-1">Dica de Gestão</h4>
-          <p className="text-blue-800 text-sm leading-relaxed">
-            Mantenha seu plano de contas enxuto. Categorias excessivas podem dificultar a análise rápida do fluxo de caixa.
-            Agrupe despesas similares para uma visão mais macroscópica.
-          </p>
-        </div>
       </div>
     </div>
   );

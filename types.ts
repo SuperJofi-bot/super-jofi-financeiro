@@ -1,5 +1,5 @@
 
-export type CategoryType = 'RECCEITA' | 'DESPESA';
+export type CategoryType = 'RECEITA' | 'DESPESA' | 'COMPRA';
 
 export interface BaseItem {
   id: string;
@@ -9,6 +9,7 @@ export interface BaseItem {
 export interface ChartOfAccounts {
   incomeTypes: BaseItem[];
   expenseTypes: BaseItem[];
+  purchaseTypes: BaseItem[];
   banks: BaseItem[];
   paymentMethods: BaseItem[];
 }
@@ -17,7 +18,7 @@ export interface Entry {
   id: string;
   date: string;
   type: CategoryType;
-  categoryId: string; // Refers to incomeTypes or expenseTypes
+  categoryId: string; // Refers to incomeTypes, expenseTypes or purchaseTypes
   description: string;
   paymentMethodId: string;
   bankId: string;
