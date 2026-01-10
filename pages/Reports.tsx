@@ -20,9 +20,9 @@ import {
   TrendingUp,
   TrendingDown,
   AlertCircle,
-  Trophy,
-  ListOrdered,
-  Calendar
+  Target,
+  FileSearch,
+  CheckCircle2
 } from 'lucide-react';
 
 const COLORS = ['#10b981', '#f43f5e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b', '#0ea5e9', '#84cc16', '#a855f7'];
@@ -32,7 +32,8 @@ const Reports: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const reportRef = useRef<HTMLDivElement>(null);
+  
+  const evolutionChartRef = useRef<HTMLDivElement>(null);
 
   const handlePrevMonth = () => {
     if (selectedMonth === 0) {
@@ -52,26 +53,6 @@ const Reports: React.FC = () => {
     }
   };
 
-  const monthlyEvolution = useMemo(() => {
-    const data = Array.from({ length: 12 }, (_, i) => ({
-      month: getMonthName(i).substring(0, 3),
-      receitas: 0,
-      despesas: 0,
-      compras: 0
-    }));
-
-    entries.forEach(entry => {
-      const d = new Date(entry.date + 'T00:00:00');
-      if (d.getFullYear() === selectedYear) {
-        const m = d.getMonth();
-        if (entry.type === 'RECEITA') data[m].receitas += entry.value;
-        else if (entry.type === 'COMPRA') data[m].compras += entry.value;
-        else data[m].despesas += entry.value;
-      }
-    });
-    return data;
-  }, [entries, selectedYear]);
-
   const monthEntries = useMemo(() => {
     return entries.filter(e => {
       if (!e.date) return false;
@@ -89,107 +70,197 @@ const Reports: React.FC = () => {
     }, { income: 0, expense: 0, purchase: 0 });
   }, [monthEntries]);
 
+  const balance = totals.income - (totals.expense + totals.purchase);
+
   const getCategoryStats = (type: 'RECEITA' | 'DESPESA' | 'COMPRA', chartList: {id: string, name: string}[]) => {
     const stats: Record<string, number> = {};
-    monthEntries.filter(e => e.type === type).forEach(entry => {
-      const name = chartList.find(t => t.id === entry.categoryId)?.name || 'Outros';
+    const filtered = monthEntries.filter(e => e.type === type);
+    
+    if (filtered.length === 0) return [];
+
+    filtered.forEach(entry => {
+      const category = chartList.find(t => t.id === entry.categoryId);
+      const name = category ? category.name : 'Não Classificado';
       stats[name] = (stats[name] || 0) + entry.value;
     });
-    return Object.entries(stats).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+
+    return Object.entries(stats)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   };
 
   const incomeStats = useMemo(() => getCategoryStats('RECEITA', chartOfAccounts.incomeTypes), [monthEntries, chartOfAccounts]);
   const expenseStats = useMemo(() => getCategoryStats('DESPESA', chartOfAccounts.expenseTypes), [monthEntries, chartOfAccounts]);
   const purchaseStats = useMemo(() => getCategoryStats('COMPRA', chartOfAccounts.purchaseTypes), [monthEntries, chartOfAccounts]);
 
-  const topExpenses = useMemo(() => monthEntries.filter(e => e.type === 'DESPESA').sort((a, b) => b.value - a.value).slice(0, 10), [monthEntries]);
-  const topPurchases = useMemo(() => monthEntries.filter(e => e.type === 'COMPRA').sort((a, b) => b.value - a.value).slice(0, 10), [monthEntries]);
+  const monthlyEvolution = useMemo(() => {
+    const data = Array.from({ length: 12 }, (_, i) => ({
+      month: getMonthName(i).substring(0, 3),
+      receitas: 0,
+      despesas: 0,
+      compras: 0
+    }));
+    entries.forEach(entry => {
+      const d = new Date(entry.date + 'T00:00:00');
+      if (d.getFullYear() === selectedYear) {
+        const m = d.getMonth();
+        if (entry.type === 'RECEITA') data[m].receitas += entry.value;
+        else if (entry.type === 'COMPRA') data[m].compras += entry.value;
+        else data[m].despesas += entry.value;
+      }
+    });
+    return data;
+  }, [entries, selectedYear]);
+
+  const analysisPoints = useMemo(() => {
+    if (monthEntries.length === 0) return ["Sem dados registrados para este período."];
+    
+    const purchasePercent = totals.income > 0 ? ((totals.purchase / totals.income) * 100).toFixed(0) : '0';
+    const expensePercent = totals.income > 0 ? ((totals.expense / totals.income) * 100).toFixed(0) : '0';
+    
+    const points = [
+      `A empresa encerrou o período com resultado ${balance >= 0 ? 'POSITIVO' : 'NEGATIVO'}.`,
+      `As compras representaram aproximadamente ${purchasePercent}% da receita, impactando diretamente o lucro.`,
+      `As despesas operacionais estão controladas, correspondendo a cerca de ${expensePercent}% da receita.`,
+    ];
+
+    const dailyIncome: Record<string, number> = {};
+    monthEntries.filter(e => e.type === 'RECEITA').forEach(e => {
+      dailyIncome[e.date] = (dailyIncome[e.date] || 0) + e.value;
+    });
+    const sortedDays = Object.values(dailyIncome).sort((a, b) => b - a);
+    if (sortedDays[0] > (totals.income * 0.4)) {
+      points.push("O faturamento apresenta concentração significativa em períodos específicos do mês.");
+    }
+
+    return points;
+  }, [totals, monthEntries, balance]);
+
+  const conclusionText = useMemo(() => {
+    if (monthEntries.length === 0) return "Nenhum dado disponível para conclusão.";
+    
+    const status = balance >= 0 ? "boa geração de receita e lucro" : "desafio na manutenção da margem";
+    const recommendation = balance < 0 || (totals.purchase / (totals.income || 1)) > 0.7 
+      ? "recomendável atenção ao fluxo de caixa e à gestão de estoques para melhorar a rentabilidade"
+      : "estratégia atual sustentável, mantendo o foco no controle de custos fixos";
+
+    return `O Super Jofi apresentou ${status}, porém com margem ${balance < (totals.income * 0.15) ? 'apertada' : 'saudável'} devido ao volume de operações. O controle de despesas está adequado, mas é ${recommendation} nos próximos períodos.`;
+  }, [totals, balance, monthEntries]);
 
   const exportToPDF = async () => {
-    if (!reportRef.current) return;
     setIsGeneratingPDF(true);
-    
-    // Configurações para o canvas focado no conteúdo (sem botões)
-    const originalStyle = reportRef.current.style.backgroundColor;
-    reportRef.current.style.backgroundColor = '#ffffff';
-    
     try {
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        windowWidth: 1200,
-        ignoreElements: (element) => element.classList.contains('no-print')
-      });
-
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      let heightLeft = pdfHeight;
-      let position = 0;
-      const pageHeight = pdf.internal.pageSize.getHeight();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+      let y = 20;
 
-      // Primeira Página
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pageHeight;
+      // --- HEADER ---
+      pdf.setFillColor(15, 23, 42); 
+      pdf.rect(0, 0, pageWidth, 50, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(28);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('SUPER JOFI', margin, 22);
+      
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`RELATÓRIO FINANCEIRO – ${getMonthName(selectedMonth).toUpperCase()}/${selectedYear}`, margin, 32);
+      
+      pdf.setFontSize(9);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text(`Emissão: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`, margin, 42);
 
-      // Adicionar páginas extras se o relatório for muito longo
-      while (heightLeft >= 0) {
-        position = heightLeft - pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pageHeight;
+      y = 65;
+
+      // --- 1. RESUMO FINANCEIRO ---
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('1. RESUMO FINANCEIRO', margin, y);
+      y += 10;
+      
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      
+      const summaryItems = [
+        { label: 'Receitas totais:', value: formatCurrency(totals.income) },
+        { label: 'Despesas operacionais:', value: formatCurrency(totals.expense) },
+        { label: 'Compras / investimentos:', value: formatCurrency(totals.purchase) },
+        { label: 'Resultado líquido do período:', value: formatCurrency(balance), bold: true }
+      ];
+
+      summaryItems.forEach(item => {
+        pdf.setFont('helvetica', item.bold ? 'bold' : 'normal');
+        pdf.text(item.label, margin + 5, y);
+        pdf.text(item.value, pageWidth - margin, y, { align: 'right' });
+        y += 7;
+      });
+      y += 12;
+
+      // --- 2. ANÁLISE OBJETIVA ---
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(14);
+      pdf.text('2. ANÁLISE OBJETIVA', margin, y);
+      y += 10;
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10.5);
+      
+      analysisPoints.forEach(point => {
+        const splitPoint = pdf.splitTextToSize(`• ${point}`, contentWidth - 5);
+        pdf.text(splitPoint, margin + 5, y);
+        y += (splitPoint.length * 6);
+      });
+      y += 10;
+
+      // --- 3. CONCLUSÃO ---
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(14);
+      pdf.text('3. CONCLUSÃO', margin, y);
+      y += 8;
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10.5);
+      
+      const splitConclusion = pdf.splitTextToSize(conclusionText, contentWidth - 5);
+      pdf.text(splitConclusion, margin + 5, y);
+      y += (splitConclusion.length * 6) + 15;
+
+      // --- GRÁFICO (ANEXO) ---
+      if (evolutionChartRef.current) {
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(12);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text('ANEXO: FLUXO DE CAIXA MENSAL', margin, y);
+        y += 5;
+        const canvas = await html2canvas(evolutionChartRef.current, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', margin, y, contentWidth, 50);
+      }
+
+      const totalPages = pdf.internal.getNumberOfPages();
+      for(let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setTextColor(148, 163, 184);
+        pdf.text(`SUPER JOFI - RELATÓRIO CONFIDENCIAL | Página ${i} de ${totalPages}`, pageWidth / 2, 285, { align: 'center' });
       }
 
       pdf.save(`Relatorio_SuperJofi_${getMonthName(selectedMonth)}_${selectedYear}.pdf`);
     } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      alert('Houve um erro ao gerar o PDF. Verifique se os dados estão carregados corretamente.');
+      console.error('PDF Export Error:', error);
+      alert('Erro ao gerar relatório.');
     } finally {
-      reportRef.current.style.backgroundColor = originalStyle;
       setIsGeneratingPDF(false);
     }
   };
 
-  const insights = useMemo(() => {
-    const totalOut = totals.expense + totals.purchase;
-    const balance = totals.income - totalOut;
-    if (monthEntries.length === 0) return "Nenhum dado para este período.";
-    
-    let text = `Em ${getMonthName(selectedMonth)}, a Super Jofi teve um desempenho `;
-    text += balance >= 0 ? "POSITIVO. " : "NEGATIVO. ";
-    text += `As despesas operacionais representam ${((totals.expense / (totalOut || 1)) * 100).toFixed(1)}% das saídas, enquanto as compras representam ${((totals.purchase / (totalOut || 1)) * 100).toFixed(1)}%. `;
-    
-    if (purchaseStats[0]) text += `O foco de investimento em compras foi "${purchaseStats[0].name}" (${formatCurrency(purchaseStats[0].value)}). `;
-    if (expenseStats[0]) text += `O maior custo administrativo/operacional foi "${expenseStats[0].name}" (${formatCurrency(expenseStats[0].value)}). `;
-
-    return text;
-  }, [totals, monthEntries, purchaseStats, expenseStats, selectedMonth]);
-
   return (
-    <div className="space-y-8 pb-12 animate-in fade-in duration-700" ref={reportRef}>
-      {/* Cabeçalho de Impressão (Só aparece no PDF) */}
-      <div className="hidden print-block border-b-2 border-slate-900 pb-4 mb-8">
-        <div className="flex justify-between items-end">
-          <div>
-            <h1 className="text-3xl font-black text-slate-900">RELATÓRIO MENSAL</h1>
-            <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Empresa: Super Jofi</p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm font-bold text-slate-800">Período: {getMonthName(selectedMonth)} / {selectedYear}</p>
-            <p className="text-[10px] text-slate-400">Gerado em: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString()}</p>
-          </div>
-        </div>
-      </div>
-
+    <div className="space-y-8 pb-12 animate-in fade-in duration-700">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Relatório Consolidado</h1>
-          <p className="text-slate-500">Análise detalhada de fluxo, compras e performance.</p>
+          <h1 className="text-2xl font-bold text-slate-900">Inteligência Financeira</h1>
+          <p className="text-slate-500">Relatórios profissionais baseados no seu plano de contas.</p>
         </div>
         <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
           <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-50 rounded-lg transition-colors text-slate-600">
@@ -205,42 +276,20 @@ const Reports: React.FC = () => {
         </div>
       </header>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-emerald-500 rounded-3xl p-5 text-white shadow-lg shadow-emerald-500/10">
-          <p className="text-xs font-bold opacity-80 uppercase tracking-wider mb-1">Receitas</p>
-          <h3 className="text-2xl font-bold">{formatCurrency(totals.income)}</h3>
-          <TrendingUp className="w-8 h-8 absolute top-4 right-4 opacity-20" />
-        </div>
-        <div className="bg-rose-500 rounded-3xl p-5 text-white shadow-lg shadow-rose-500/10">
-          <p className="text-xs font-bold opacity-80 uppercase tracking-wider mb-1">Despesas</p>
-          <h3 className="text-2xl font-bold">{formatCurrency(totals.expense)}</h3>
-          <TrendingDown className="w-8 h-8 absolute top-4 right-4 opacity-20" />
-        </div>
-        <div className="bg-blue-600 rounded-3xl p-5 text-white shadow-lg shadow-blue-600/10">
-          <p className="text-xs font-bold opacity-80 uppercase tracking-wider mb-1">Compras</p>
-          <h3 className="text-2xl font-bold">{formatCurrency(totals.purchase)}</h3>
-          <ShoppingBag className="w-8 h-8 absolute top-4 right-4 opacity-20" />
-        </div>
-        <div className={`rounded-3xl p-5 shadow-lg border ${totals.income - totals.expense - totals.purchase < 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-900 text-white'}`}>
-          <p className="text-xs font-bold opacity-80 uppercase tracking-wider mb-1">Saldo Líquido</p>
-          <h3 className="text-2xl font-bold">{formatCurrency(totals.income - totals.expense - totals.purchase)}</h3>
-          <AlertCircle className="w-8 h-8 absolute top-4 right-4 opacity-20" />
-        </div>
-      </div>
-
-      {/* Gráfico de Evolução Anual */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-[400px] min-w-0">
+      {/* 3. FLUXO DE CAIXA NO TOPO - LARGURA TOTAL */}
+      <section className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm min-w-0" ref={evolutionChartRef}>
         <div className="flex items-center justify-between mb-6">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-indigo-500" /> Fluxo de Caixa Anual ({selectedYear})</h3>
-          <div className="flex gap-4 text-[10px] font-bold uppercase">
-            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Rec</span>
-            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-rose-500"></div> Des</span>
-            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-600"></div> Com</span>
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-indigo-500" /> Fluxo de Caixa Mensal Consolidado ({selectedYear})
+          </h3>
+          <div className="flex gap-4 text-[10px] font-bold uppercase no-print">
+            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Receitas</span>
+            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-rose-500"></div> Despesas</span>
+            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-600"></div> Compras</span>
           </div>
         </div>
-        <div className="h-[300px] w-full min-w-0">
-          <ResponsiveContainer width="100%" height="100%" minHeight={0}>
+        <div className="h-[250px] w-full min-w-0">
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={monthlyEvolution}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
@@ -250,159 +299,171 @@ const Reports: React.FC = () => {
                 contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
                 formatter={(value: number) => formatCurrency(value)}
               />
-              <Bar dataKey="receitas" fill="#10b981" radius={[4, 4, 0, 0]} barSize={8} />
-              <Bar dataKey="despesas" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={8} />
-              <Bar dataKey="compras" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={8} />
+              <Bar dataKey="receitas" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+              <Bar dataKey="despesas" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={20} />
+              <Bar dataKey="compras" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={20} />
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </section>
 
-      {/* Gráficos de Distribuição com Legenda Melhorada */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Distribuição de Despesas */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 min-w-0 flex flex-col">
-          <h4 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2"><PieChartIcon className="w-4 h-4 text-rose-500" /> Distribuição de Despesas Operacionais</h4>
-          <div className="flex flex-col sm:flex-row gap-8 items-center flex-1">
-            <div className="h-[220px] w-full sm:w-1/2 min-w-0">
-              <ResponsiveContainer width="100%" height="100%" minHeight={0}>
-                <PieChart>
-                  <Pie data={expenseStats} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={2} dataKey="value">
-                    {expenseStats.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            {/* Legenda Organizada */}
-            <div className="w-full sm:w-1/2 space-y-2 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
-              {expenseStats.length > 0 ? expenseStats.map((item, i) => (
-                <div key={i} className="flex items-center justify-between group">
-                  <div className="flex items-center gap-2 truncate">
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
-                    <span className="text-xs font-medium text-slate-600 truncate">{item.name}</span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Lado Esquerdo: Dados e Texto */}
+        <div className="lg:col-span-2 space-y-6">
+          
+          {/* 1. RESUMO FINANCEIRO */}
+          <section className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <CircleDollarSign className="w-5 h-5 text-indigo-500" /> 1. Resumo Financeiro
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+               <div className="space-y-4">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                    <span className="text-sm text-slate-500">Receitas Totais</span>
+                    <span className="text-sm font-bold text-emerald-600">{formatCurrency(totals.income)}</span>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-800 pl-4">{formatCurrency(item.value)}</span>
-                </div>
-              )) : <p className="text-xs text-slate-400 italic">Sem despesas registradas.</p>}
-            </div>
-          </div>
-        </div>
-
-        {/* Distribuição de Compras */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 min-w-0 flex flex-col">
-          <h4 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2"><ShoppingBag className="w-4 h-4 text-blue-600" /> Foco de Investimento em Compras</h4>
-          <div className="flex flex-col sm:flex-row gap-8 items-center flex-1">
-            <div className="h-[220px] w-full sm:w-1/2 min-w-0">
-              <ResponsiveContainer width="100%" height="100%" minHeight={0}>
-                <PieChart>
-                  <Pie data={purchaseStats} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={2} dataKey="value">
-                    {purchaseStats.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            {/* Legenda Organizada */}
-            <div className="w-full sm:w-1/2 space-y-2 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
-              {purchaseStats.length > 0 ? purchaseStats.map((item, i) => (
-                <div key={i} className="flex items-center justify-between group">
-                  <div className="flex items-center gap-2 truncate">
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
-                    <span className="text-xs font-medium text-slate-600 truncate">{item.name}</span>
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                    <span className="text-sm text-slate-500">Despesas Operacionais</span>
+                    <span className="text-sm font-bold text-rose-600">{formatCurrency(totals.expense)}</span>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-800 pl-4">{formatCurrency(item.value)}</span>
-                </div>
-              )) : <p className="text-xs text-slate-400 italic">Sem compras registradas.</p>}
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                    <span className="text-sm text-slate-500">Compras / Investimentos</span>
+                    <span className="text-sm font-bold text-blue-600">{formatCurrency(totals.purchase)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2">
+                    <span className="text-sm font-bold text-slate-900">Resultado Líquido</span>
+                    <span className={`text-lg font-black ${balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatCurrency(balance)}</span>
+                  </div>
+               </div>
+               <div className="flex flex-col justify-center items-center bg-slate-50 rounded-2xl p-4">
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mb-2">
+                    <div className="bg-emerald-500 h-full" style={{ width: `${Math.min(100, totals.income > 0 ? (Math.max(0, balance) / totals.income) * 100 : 0)}%` }}></div>
+                  </div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">
+                    Lucro: {totals.income > 0 ? ((balance / totals.income) * 100).toFixed(1) : 0}%
+                  </p>
+               </div>
             </div>
-          </div>
-        </div>
-      </div>
+          </section>
 
-      {/* Rankings Section (Tabelas Profissionais) */}
-      <div className="grid grid-cols-1 gap-8">
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 text-rose-600"><ListOrdered className="w-5 h-5" /> Principais Saídas de Caixa (Despesas & Compras)</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-y border-slate-100">
-                  <th className="px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Data</th>
-                  <th className="px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Tipo</th>
-                  <th className="px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Beneficiário/Cliente</th>
-                  <th className="px-4 py-3 font-bold text-slate-500 uppercase text-[10px]">Item/Descrição</th>
-                  <th className="px-4 py-3 font-bold text-slate-500 uppercase text-[10px] text-right">Valor Bruto</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {[...topExpenses, ...topPurchases].sort((a,b) => b.value - a.value).slice(0, 15).map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(item.date)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${item.type === 'DESPESA' ? 'border-rose-200 text-rose-600 bg-rose-50' : 'border-blue-200 text-blue-600 bg-blue-50'}`}>
-                        {item.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-bold text-slate-900">{item.clientName || 'N/A'}</td>
-                    <td className="px-4 py-3 text-slate-500 italic">{item.description}</td>
-                    <td className="px-4 py-3 text-right font-black text-slate-900">{formatCurrency(item.value)}</td>
-                  </tr>
-                ))}
-                {monthEntries.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400 font-medium italic">Nenhum dado encontrado para listagem neste período.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Insights & Export Section */}
-      <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 md:p-12 flex flex-col md:flex-row gap-10 items-center">
-         <div className="flex-1">
-            <div className="flex items-center gap-3 mb-4">
-               <div className="bg-emerald-500/20 p-2 rounded-xl"><Info className="w-6 h-6 text-emerald-400" /></div>
-               <h4 className="text-xl font-bold">Resumo Estratégico do Período</h4>
+          {/* 2. ANÁLISE OBJETIVA */}
+          <section className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <Target className="w-5 h-5 text-emerald-500" /> 2. Análise Objetiva
+            </h3>
+            <div className="space-y-3">
+               {analysisPoints.map((point, idx) => (
+                 <div key={idx} className="flex gap-3 items-start p-3 hover:bg-slate-50 rounded-xl transition-colors">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-slate-600 font-medium leading-relaxed">{point}</p>
+                 </div>
+               ))}
             </div>
-            <p className="text-slate-400 text-lg leading-relaxed font-medium mb-6">
-              {insights}
+          </section>
+
+          {/* 3. CONCLUSÃO - ATUALIZADO PARA 3 */}
+          <section className="bg-slate-900 text-white p-8 rounded-3xl border border-slate-800 shadow-xl">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <FileSearch className="w-5 h-5 text-indigo-400" /> 3. Conclusão
+            </h3>
+            <p className="text-slate-400 text-sm leading-relaxed font-medium">
+              {conclusionText}
             </p>
-            <div className="flex flex-wrap gap-4 no-print">
-               <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest text-emerald-400 flex items-center gap-2">
-                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
-                 Lucratividade: {totals.income > 0 ? (( (totals.income - (totals.expense + totals.purchase)) / totals.income ) * 100).toFixed(1) : 0}%
-               </div>
-               <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest text-blue-400 flex items-center gap-2">
-                 <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
-                 Op. Efetuadas: {monthEntries.length}
-               </div>
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 no-print">
+               <button 
+                onClick={exportToPDF}
+                disabled={isGeneratingPDF || monthEntries.length === 0}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-700 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+               >
+                 {isGeneratingPDF ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
+                 Exportar Relatório Profissional (PDF)
+               </button>
+               <button className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all">
+                 <Mail className="w-5 h-5" />
+                 Enviar para Gestão
+               </button>
             </div>
-         </div>
-         <div className="flex flex-col gap-3 w-full md:w-auto no-print">
-            <button 
-              onClick={exportToPDF} 
-              disabled={isGeneratingPDF || monthEntries.length === 0} 
-              className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-700 px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
-            >
-              {isGeneratingPDF ? <Loader2 className="animate-spin w-5 h-5" /> : <FileText className="w-5 h-5" />}
-              {isGeneratingPDF ? 'Gerando Relatório Profissional...' : 'Exportar Relatório PDF (A4)'}
-            </button>
-            <button className="bg-white/5 hover:bg-white/10 border border-white/10 px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all">
-              <Mail className="w-5 h-5" />
-              Enviar para Diretoria
-            </button>
-         </div>
-      </div>
-      
-      {/* Rodapé de Página (Só aparece no PDF) */}
-      <div className="hidden print-block mt-12 pt-8 border-t border-slate-100 flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-        <span>© Super Jofi - Gestão Financeira Inteligente</span>
-        <span>Página 1 de 1</span>
+          </section>
+        </div>
+
+        {/* Lado Direito: Gráficos de Componentes */}
+        <div className="space-y-6">
+          {/* GRÁFICOS DE COMPONENTES */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+              <ShoppingBag className="w-4 h-4 text-blue-600" /> Foco de Compras
+            </h4>
+            <div className="h-[180px] w-full mb-4">
+               {purchaseStats.length > 0 ? (
+                 <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={purchaseStats} cx="50%" cy="50%" innerRadius={55} outerRadius={75} paddingAngle={2} dataKey="value">
+                        {purchaseStats.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    </PieChart>
+                 </ResponsiveContainer>
+               ) : (
+                 <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2">
+                    <ShoppingBag className="w-10 h-10 opacity-20" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest">Sem compras registradas</p>
+                 </div>
+               )}
+            </div>
+            <div className="space-y-2 max-h-[140px] overflow-y-auto custom-scrollbar">
+               {purchaseStats.map((item, i) => (
+                 <div key={i} className="flex items-center justify-between group">
+                    <div className="flex items-center gap-2 truncate">
+                       <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
+                       <span className="text-[10px] font-medium text-slate-600 truncate">{item.name}</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-800">{formatCurrency(item.value)}</span>
+                 </div>
+               ))}
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+              <PieChartIcon className="w-4 h-4 text-rose-500" /> Distribuição de Despesas
+            </h4>
+            <div className="h-[180px] w-full mb-4">
+               {expenseStats.length > 0 ? (
+                 <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={expenseStats} cx="50%" cy="50%" innerRadius={55} outerRadius={75} paddingAngle={2} dataKey="value">
+                        {expenseStats.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    </PieChart>
+                 </ResponsiveContainer>
+               ) : (
+                <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2">
+                   <TrendingDown className="w-10 h-10 opacity-20" />
+                   <p className="text-[10px] font-bold uppercase tracking-widest">Sem despesas registradas</p>
+                </div>
+               )}
+            </div>
+            <div className="space-y-2 max-h-[140px] overflow-y-auto custom-scrollbar">
+               {expenseStats.map((item, i) => (
+                 <div key={i} className="flex items-center justify-between group">
+                    <div className="flex items-center gap-2 truncate">
+                       <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
+                       <span className="text-[10px] font-medium text-slate-600 truncate">{item.name}</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-800">{formatCurrency(item.value)}</span>
+                 </div>
+               ))}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
+
+const CircleDollarSign = ({ className }: { className?: string }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+);
 
 export default Reports;
