@@ -14,15 +14,12 @@ import {
   ChevronRight, 
   FileText, 
   Mail, 
-  Info, 
   Loader2, 
   BarChart3,
-  TrendingUp,
-  TrendingDown,
-  AlertCircle,
   Target,
   FileSearch,
-  CheckCircle2
+  CheckCircle2,
+  TrendingDown
 } from 'lucide-react';
 
 const COLORS = ['#10b981', '#f43f5e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b', '#0ea5e9', '#84cc16', '#a855f7'];
@@ -93,6 +90,10 @@ const Reports: React.FC = () => {
   const expenseStats = useMemo(() => getCategoryStats('DESPESA', chartOfAccounts.expenseTypes), [monthEntries, chartOfAccounts]);
   const purchaseStats = useMemo(() => getCategoryStats('COMPRA', chartOfAccounts.purchaseTypes), [monthEntries, chartOfAccounts]);
 
+  const top10ExpenseCategories = useMemo(() => {
+    return expenseStats.slice(0, 10);
+  }, [expenseStats]);
+
   const monthlyEvolution = useMemo(() => {
     const data = Array.from({ length: 12 }, (_, i) => ({
       month: getMonthName(i).substring(0, 3),
@@ -156,100 +157,126 @@ const Reports: React.FC = () => {
       const contentWidth = pageWidth - (margin * 2);
       let y = 20;
 
-      // --- HEADER ---
+      // --- HEADER PROFISSIONAL ---
       pdf.setFillColor(15, 23, 42); 
-      pdf.rect(0, 0, pageWidth, 50, 'F');
+      pdf.rect(0, 0, pageWidth, 55, 'F');
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(28);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('SUPER JOFI', margin, 22);
+      pdf.setFontSize(28);
+      pdf.text('SUPER JOFI', margin, 25);
       
-      pdf.setFontSize(14);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(`RELATÓRIO FINANCEIRO – ${getMonthName(selectedMonth).toUpperCase()}/${selectedYear}`, margin, 32);
+      pdf.setFontSize(14);
+      pdf.text(`RELATÓRIO DE DESEMPENHO FINANCEIRO`, margin, 35);
       
-      pdf.setFontSize(9);
-      pdf.setTextColor(148, 163, 184);
-      pdf.text(`Emissão: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`, margin, 42);
+      pdf.setFontSize(10);
+      pdf.setTextColor(200, 200, 200);
+      pdf.text(`Competência: ${getMonthName(selectedMonth).toUpperCase()} / ${selectedYear}`, margin, 42);
+      pdf.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, margin, 47);
 
-      y = 65;
+      y = 75;
 
       // --- 1. RESUMO FINANCEIRO ---
       pdf.setTextColor(15, 23, 42);
-      pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(16);
       pdf.text('1. RESUMO FINANCEIRO', margin, y);
-      y += 10;
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(margin, y + 2, pageWidth - margin, y + 2);
+      y += 12;
       
-      pdf.setFontSize(11);
       pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(11);
       
       const summaryItems = [
-        { label: 'Receitas totais:', value: formatCurrency(totals.income) },
-        { label: 'Despesas operacionais:', value: formatCurrency(totals.expense) },
-        { label: 'Compras / investimentos:', value: formatCurrency(totals.purchase) },
-        { label: 'Resultado líquido do período:', value: formatCurrency(balance), bold: true }
+        { label: 'Receitas Totais Brutas', value: formatCurrency(totals.income) },
+        { label: 'Custos com Compras e Estoque', value: formatCurrency(totals.purchase) },
+        { label: 'Despesas Operacionais e Administrativas', value: formatCurrency(totals.expense) },
+        { label: 'Resultado Líquido Operacional', value: formatCurrency(balance), bold: true }
       ];
 
       summaryItems.forEach(item => {
         pdf.setFont('helvetica', item.bold ? 'bold' : 'normal');
         pdf.text(item.label, margin + 5, y);
         pdf.text(item.value, pageWidth - margin, y, { align: 'right' });
-        y += 7;
+        y += 8;
       });
-      y += 12;
+      y += 10;
 
       // --- 2. ANÁLISE OBJETIVA ---
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(14);
+      pdf.setFontSize(16);
       pdf.text('2. ANÁLISE OBJETIVA', margin, y);
-      y += 10;
+      pdf.line(margin, y + 2, pageWidth - margin, y + 2);
+      y += 12;
+
       pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10.5);
-      
+      pdf.setFontSize(11);
       analysisPoints.forEach(point => {
-        const splitPoint = pdf.splitTextToSize(`• ${point}`, contentWidth - 5);
+        const splitPoint = pdf.splitTextToSize(`• ${point}`, contentWidth - 10);
         pdf.text(splitPoint, margin + 5, y);
-        y += (splitPoint.length * 6);
+        y += (splitPoint.length * 6) + 2;
       });
       y += 10;
 
       // --- 3. CONCLUSÃO ---
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(14);
+      pdf.setFontSize(16);
       pdf.text('3. CONCLUSÃO', margin, y);
-      y += 8;
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10.5);
-      
-      const splitConclusion = pdf.splitTextToSize(conclusionText, contentWidth - 5);
-      pdf.text(splitConclusion, margin + 5, y);
-      y += (splitConclusion.length * 6) + 15;
+      pdf.line(margin, y + 2, pageWidth - margin, y + 2);
+      y += 12;
 
-      // --- GRÁFICO (ANEXO) ---
-      if (evolutionChartRef.current) {
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(11);
+      const splitConclusion = pdf.splitTextToSize(conclusionText, contentWidth - 10);
+      pdf.text(splitConclusion, margin + 5, y);
+      y += (splitConclusion.length * 6) + 20;
+
+      // --- 4. TOP 10 MAIORES GASTOS COM DESPESAS ---
+      if (y > 200) { pdf.addPage(); y = 25; }
+      
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(16);
+      pdf.text('4. TOP 10 MAIORES GASTOS COM DESPESAS', margin, y);
+      pdf.line(margin, y + 2, pageWidth - margin, y + 2);
+      y += 12;
+
+      if (top10ExpenseCategories.length > 0) {
+        // Tabela de Categorias
+        pdf.setFillColor(248, 250, 252);
+        pdf.rect(margin, y, contentWidth, 8, 'F');
+        pdf.setFontSize(10);
         pdf.setTextColor(100, 116, 139);
-        pdf.text('ANEXO: FLUXO DE CAIXA MENSAL', margin, y);
-        y += 5;
-        const canvas = await html2canvas(evolutionChartRef.current, { scale: 2 });
-        const imgData = canvas.toDataURL('image/png');
-        pdf.addImage(imgData, 'PNG', margin, y, contentWidth, 50);
+        pdf.text('CATEGORIA', margin + 5, y + 5.5);
+        pdf.text('TOTAL ACUMULADO NO MÊS', pageWidth - margin - 5, y + 5.5, { align: 'right' });
+        y += 12;
+
+        pdf.setTextColor(15, 23, 42);
+        top10ExpenseCategories.forEach((cat, idx) => {
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(`${idx + 1}. ${cat.name}`, margin + 5, y);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(formatCurrency(cat.value), pageWidth - margin - 5, y, { align: 'right' });
+          y += 8;
+        });
+      } else {
+        pdf.setFont('helvetica', 'italic');
+        pdf.text('Nenhuma despesa registrada para o período.', margin + 5, y);
       }
 
+      // Rodapé Global
       const totalPages = pdf.internal.getNumberOfPages();
       for(let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(8);
         pdf.setTextColor(148, 163, 184);
-        pdf.text(`SUPER JOFI - RELATÓRIO CONFIDENCIAL | Página ${i} de ${totalPages}`, pageWidth / 2, 285, { align: 'center' });
+        pdf.text(`Relatório Gerencial Executivo - Super Jofi | Página ${i} de ${totalPages}`, pageWidth / 2, 285, { align: 'center' });
       }
 
       pdf.save(`Relatorio_SuperJofi_${getMonthName(selectedMonth)}_${selectedYear}.pdf`);
     } catch (error) {
       console.error('PDF Export Error:', error);
-      alert('Erro ao gerar relatório.');
+      alert('Erro ao gerar relatório profissional.');
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -276,7 +303,7 @@ const Reports: React.FC = () => {
         </div>
       </header>
 
-      {/* 3. FLUXO DE CAIXA NO TOPO - LARGURA TOTAL */}
+      {/* FLUXO DE CAIXA NO TOPO - LARGURA TOTAL */}
       <section className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm min-w-0" ref={evolutionChartRef}>
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
@@ -308,7 +335,6 @@ const Reports: React.FC = () => {
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Lado Esquerdo: Dados e Texto */}
         <div className="lg:col-span-2 space-y-6">
           
           {/* 1. RESUMO FINANCEIRO */}
@@ -340,7 +366,7 @@ const Reports: React.FC = () => {
                     <div className="bg-emerald-500 h-full" style={{ width: `${Math.min(100, totals.income > 0 ? (Math.max(0, balance) / totals.income) * 100 : 0)}%` }}></div>
                   </div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">
-                    Lucro: {totals.income > 0 ? ((balance / totals.income) * 100).toFixed(1) : 0}%
+                    Rentabilidade: {totals.income > 0 ? ((balance / totals.income) * 100).toFixed(1) : 0}%
                   </p>
                </div>
             </div>
@@ -361,7 +387,7 @@ const Reports: React.FC = () => {
             </div>
           </section>
 
-          {/* 3. CONCLUSÃO - ATUALIZADO PARA 3 */}
+          {/* 3. CONCLUSÃO */}
           <section className="bg-slate-900 text-white p-8 rounded-3xl border border-slate-800 shadow-xl">
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <FileSearch className="w-5 h-5 text-indigo-400" /> 3. Conclusão
@@ -386,7 +412,6 @@ const Reports: React.FC = () => {
           </section>
         </div>
 
-        {/* Lado Direito: Gráficos de Componentes */}
         <div className="space-y-6">
           {/* GRÁFICOS DE COMPONENTES */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">

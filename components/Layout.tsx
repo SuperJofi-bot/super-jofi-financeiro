@@ -6,6 +6,7 @@ import {
   BarChart3, 
   Menu, 
   X, 
+  Users as UsersIcon,
   Wallet,
   CircleDollarSign,
   TrendingUp,
@@ -17,15 +18,17 @@ interface LayoutProps {
   children: React.ReactNode;
   currentPage: Page;
   setCurrentPage: (page: Page) => void;
+  onLogout: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const navItems = [
     { id: Page.CHART_OF_ACCOUNTS, label: 'Plano de Contas', icon: LayoutDashboard },
     { id: Page.ENTRIES, label: 'Lançamentos', icon: ArrowRightLeft },
     { id: Page.REPORTS, label: 'Relatórios', icon: BarChart3 },
+    { id: Page.USERS, label: 'Usuários', icon: UsersIcon },
   ];
 
   const logoUrl = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTfq4BxEHtsFj1qCF3sTK3eyQy2sqv-QXRs8Q&s";
@@ -53,7 +56,6 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }
               alt="Super Jofi Logo" 
               className="w-full h-full object-contain p-0.5"
               onError={(e) => {
-                // Fallback caso a imagem não exista
                 e.currentTarget.src = 'https://via.placeholder.com/150?text=Jofi';
               }}
             />
@@ -86,10 +88,13 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }
         </nav>
 
         <div className="absolute bottom-8 left-0 right-0 px-8">
-          <div className="p-4 bg-slate-800 rounded-2xl">
-            <p className="text-xs text-slate-400 mb-1">Versão 1.1.0</p>
-            <p className="text-sm font-semibold text-white">Suporte Super Jofi</p>
-          </div>
+          <button 
+            onClick={onLogout}
+            className="w-full p-4 bg-slate-800 hover:bg-rose-900/40 hover:text-rose-200 border border-slate-700 rounded-2xl transition-all group"
+          >
+            <p className="text-xs text-slate-500 group-hover:text-rose-300 mb-1 transition-colors">Encerrar Sessão</p>
+            <p className="text-sm font-semibold">Sair do Sistema</p>
+          </button>
         </div>
       </aside>
 

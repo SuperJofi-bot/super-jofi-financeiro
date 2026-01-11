@@ -26,8 +26,15 @@ export interface Entry {
   value: number;
 }
 
+export interface User {
+  id: string; // UUID (chave estrangeira do auth.users.id)
+  login: string;
+  role: 'admin' | 'operator';
+}
+
 export enum Page {
   CHART_OF_ACCOUNTS = 'plano-de-contas',
   ENTRIES = 'lancamentos',
-  REPORTS = 'relatorios'
+  REPORTS = 'relatorios',
+  USERS = 'usuarios'
 }

@@ -6,7 +6,6 @@ import { formatCurrency, formatDate, getMonthName } from '../utils/formatters';
 import { 
   Plus, 
   Search, 
-  Filter, 
   Trash2, 
   Edit3, 
   ChevronLeft, 
@@ -65,14 +64,12 @@ const EntryModal: React.FC<{
     try {
       await onSubmit(formData);
       
-      // Se for um novo lançamento, não fecha, apenas limpa para o próximo
       if (!editingEntry) {
         setFormData({
           ...initialFormState,
-          date: formData.date, // Mantém a data para agilizar lançamentos do mesmo dia
-          type: formData.type, // Mantém o tipo para agilizar lançamentos da mesma categoria
+          date: formData.date,
+          type: formData.type,
         });
-        // Opcional: focar no campo de valor ou descrição após limpar
       }
     } finally {
       setIsSubmitting(false);
@@ -188,13 +185,22 @@ const Entries: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredEntries = useMemo(() => {
-    return entries.filter(entry => {
+    const result = entries.filter(entry => {
       if (!entry.date) return false;
       const d = new Date(entry.date + 'T00:00:00');
       const matchesDate = d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-      const matchesSearch = entry.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          entry.clientName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (entry.description || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (entry.clientName || '').toLowerCase().includes(searchTerm.toLowerCase());
       return matchesDate && matchesSearch;
+    });
+
+    // Sort: Tipo (RECEITA -> COMPRA -> DESPESA) e depois Data (Antiga -> Nova)
+    return result.sort((a, b) => {
+      const typeOrder = { 'RECEITA': 1, 'COMPRA': 2, 'DESPESA': 3 };
+      if (typeOrder[a.type] !== typeOrder[b.type]) {
+        return typeOrder[a.type] - typeOrder[b.type];
+      }
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
     });
   }, [entries, currentMonth, currentYear, searchTerm]);
 
@@ -351,9 +357,9 @@ const Entries: React.FC = () => {
         onSubmit={async (data) => { 
           if (editingEntry) {
             await updateEntry(editingEntry.id, data); 
-            setIsModalOpen(false); // Fecha o modal apenas se for edição
+            setIsModalOpen(false);
           } else {
-            await addEntry(data); // Mantém aberto para novos lançamentos
+            await addEntry(data);
           }
         }} 
         editingEntry={editingEntry} 

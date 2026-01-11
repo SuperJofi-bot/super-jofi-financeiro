@@ -8,7 +8,9 @@ export const formatCurrency = (value: number) => {
 
 export const formatDate = (dateStr: string) => {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
+  // Divide a string YYYY-MM-DD para evitar deslocamentos de fuso horário (timezone shift)
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
   return new Intl.DateTimeFormat('pt-BR').format(date);
 };
 
