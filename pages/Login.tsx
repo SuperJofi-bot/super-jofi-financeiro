@@ -82,7 +82,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 required
                 autoFocus
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-700 font-semibold"
-                placeholder=" "
+                placeholder="Usuário"
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
               />
